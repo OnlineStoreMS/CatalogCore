@@ -100,8 +100,10 @@ type ProductDTO struct {
 	ID          uint64          `json:"id"`
 	BrandID     uint64          `json:"brandId"`
 	SeriesID    uint64          `json:"seriesId"`
+	ParentID    uint64          `json:"parentId"`
 	BrandName   string          `json:"brandName,omitempty"`
 	SeriesName  string          `json:"seriesName,omitempty"`
+	ParentName  string          `json:"parentName,omitempty"`
 	Name        string          `json:"name"`
 	ModelNo     string          `json:"modelNo"`
 	Subtitle    string          `json:"subtitle"`
@@ -123,6 +125,7 @@ type ProductDTO struct {
 type ProductSaveReq struct {
 	BrandID     uint64          `json:"brandId" binding:"required"`
 	SeriesID    uint64          `json:"seriesId"`
+	ParentID    uint64          `json:"parentId"`
 	Name        string          `json:"name" binding:"required"`
 	ModelNo     string          `json:"modelNo"`
 	Subtitle    string          `json:"subtitle"`

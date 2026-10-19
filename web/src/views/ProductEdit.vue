@@ -3,8 +3,8 @@ import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import {
-  getProduct, saveProduct, listBrands, listSeries, seriesOptionLabel,
-  type Brand, type Series, type Variant,
+  getProduct, saveProduct, listBrands, listSeries, listProducts, seriesOptionLabel,
+  type Brand, type Series, type Product, type Variant,
 } from '../api/catalog'
 
 const route = useRoute()
@@ -13,6 +13,7 @@ const loading = ref(false)
 const saving = ref(false)
 const brands = ref<Brand[]>([])
 const series = ref<Series[]>([])
+const kits = ref<Product[]>([])
 
 const id = computed(() => {
   const raw = route.params.id
@@ -23,6 +24,7 @@ const id = computed(() => {
 const form = ref({
   brandId: 0,
   seriesId: 0,
+  parentId: 0,
   name: '',
   modelNo: '',
   subtitle: '',
@@ -41,9 +43,12 @@ const form = ref({
 async function loadSeriesForBrand() {
   if (!form.value.brandId) {
     series.value = []
+    kits.value = []
     return
   }
   series.value = await listSeries(form.value.brandId)
+  const res = await listProducts({ brandId: form.value.brandId, page: 1, pageSize: 200 })
+  kits.value = (res.list || []).filter((p) => !p.parentId && p.id !== id.value && (p.name.includes('大套') || (p.tagsJson || '').includes('groupset')))
 }
 
 function addVariant() {
@@ -63,6 +68,7 @@ async function load() {
     form.value = {
       brandId: p.brandId,
       seriesId: p.seriesId,
+      parentId: p.parentId || 0,
       name: p.name,
       modelNo: p.modelNo,
       subtitle: p.subtitle,
@@ -96,7 +102,7 @@ async function submit() {
   }
   saving.value = true
   try {
-    const saved = await saveProduct({ ...form.value }, id.value || undefined)
+    const saved = await saveProduct({ ...form.value, parentId: form.value.parentId || 0 }, id.value || undefined)
     ElMessage.success('已保存')
     if (!id.value) router.replace(`/products/${saved.id}`)
     else await load()
@@ -131,12 +137,18 @@ onMounted(load)
         </el-col>
         <el-col :span="12">
           <el-form-item label="系列">
-            <el-select v-model="form.seriesId" clearable filterable style="width: 100%">
+            <el-select v-model="form.seriesId" clearable filterable style="width: 100%" @change="() => { form.parentId = 0 }">
               <el-option v-for="s in series" :key="s.id" :label="seriesOptionLabel(s)" :value="s.id" />
             </el-select>
           </el-form-item>
         </el-col>
       </el-row>
+
+      <el-form-item label="所属大套">
+        <el-select v-model="form.parentId" clearable filterable placeholder="本身是大套或独立产品" style="width: 100%">
+          <el-option v-for="k in kits.filter((k) => !form.seriesId || k.seriesId === form.seriesId)" :key="k.id" :label="k.name" :value="k.id" />
+        </el-select>
+      </el-form-item>
 
       <el-row :gutter="16">
         <el-col :span="12"><el-form-item label="名称" required><el-input v-model="form.name" /></el-form-item></el-col>

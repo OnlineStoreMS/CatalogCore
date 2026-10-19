@@ -264,16 +264,20 @@ func (s *CatalogService) ListProducts(tenantID uint64, q dto.ProductListQuery) (
 		return nil, 0, err
 	}
 	var list []model.Product
-	if err := dbq.Preload("Variants").Order("id desc").Offset((page - 1) * pageSize).Limit(pageSize).Find(&list).Error; err != nil {
+	if err := dbq.Preload("Variants").
+		Order("CASE WHEN parent_id = 0 THEN id ELSE parent_id END, parent_id, id").
+		Offset((page - 1) * pageSize).Limit(pageSize).Find(&list).Error; err != nil {
 		return nil, 0, err
 	}
 	brandNames := s.brandNameMap(tenantID)
 	seriesNames := s.seriesNameMap(tenantID)
+	parentNames := s.productNameMap(tenantID, parentIDs(list))
 	out := make([]dto.ProductDTO, 0, len(list))
 	for i := range list {
 		d := s.toProductDTO(&list[i], false)
 		d.BrandName = brandNames[list[i].BrandID]
 		d.SeriesName = seriesNames[list[i].SeriesID]
+		d.ParentName = parentNames[list[i].ParentID]
 		out = append(out, d)
 	}
 	return out, total, nil
@@ -289,6 +293,10 @@ func (s *CatalogService) GetProduct(tenantID, id uint64) (*dto.ProductDTO, error
 	seriesNames := s.seriesNameMap(tenantID)
 	d.BrandName = brandNames[row.BrandID]
 	d.SeriesName = seriesNames[row.SeriesID]
+	if row.ParentID > 0 {
+		names := s.productNameMap(tenantID, []uint64{row.ParentID})
+		d.ParentName = names[row.ParentID]
+	}
 	return &d, nil
 }
 
@@ -304,6 +312,18 @@ func (s *CatalogService) SaveProduct(tenantID, userID, id uint64, req dto.Produc
 		var series model.Series
 		if err := s.db(tenantID).Where("id = ? AND brand_id = ?", req.SeriesID, req.BrandID).First(&series).Error; err != nil {
 			return nil, fmt.Errorf("%w: 系列不存在或不属于该品牌", ErrBadRequest)
+		}
+	}
+	if req.ParentID > 0 {
+		if req.ParentID == id {
+			return nil, fmt.Errorf("%w: 不能把产品挂到自己下面", ErrBadRequest)
+		}
+		var parent model.Product
+		if err := s.db(tenantID).Where("id = ? AND brand_id = ?", req.ParentID, req.BrandID).First(&parent).Error; err != nil {
+			return nil, fmt.Errorf("%w: 大套不存在或不属于该品牌", ErrBadRequest)
+		}
+		if parent.ParentID > 0 {
+			return nil, fmt.Errorf("%w: 只能挂在大套下面", ErrBadRequest)
 		}
 	}
 	status := int8(1)
@@ -324,6 +344,7 @@ func (s *CatalogService) SaveProduct(tenantID, userID, id uint64, req dto.Produc
 		}
 		row.BrandID = req.BrandID
 		row.SeriesID = req.SeriesID
+		row.ParentID = req.ParentID
 		row.Name = strings.TrimSpace(req.Name)
 		row.ModelNo = strings.TrimSpace(req.ModelNo)
 		row.Subtitle = strings.TrimSpace(req.Subtitle)
@@ -412,6 +433,11 @@ func (s *CatalogService) SaveProduct(tenantID, userID, id uint64, req dto.Produc
 }
 
 func (s *CatalogService) DeleteProduct(tenantID, id uint64) error {
+	var cnt int64
+	s.db(tenantID).Model(&model.Product{}).Where("parent_id = ?", id).Count(&cnt)
+	if cnt > 0 {
+		return fmt.Errorf("%w: 大套下仍有产品", ErrConflict)
+	}
 	return s.repos.DB.Transaction(func(tx *gorm.DB) error {
 		res := tx.Where("tenant_id = ?", repo.NormalizeTenantID(tenantID)).Delete(&model.Product{}, id)
 		if res.Error != nil {
@@ -428,7 +454,7 @@ func (s *CatalogService) DeleteProduct(tenantID, id uint64) error {
 
 func (s *CatalogService) toProductDTO(p *model.Product, full bool) dto.ProductDTO {
 	d := dto.ProductDTO{
-		ID: p.ID, BrandID: p.BrandID, SeriesID: p.SeriesID,
+		ID: p.ID, BrandID: p.BrandID, SeriesID: p.SeriesID, ParentID: p.ParentID,
 		Name: p.Name, ModelNo: p.ModelNo, Subtitle: p.Subtitle,
 		CoverURL: s.resolveURL(p.CoverURL), Intro: p.Intro,
 		SpecsJSON: p.SpecsJSON, TagsJSON: p.TagsJSON,
@@ -453,6 +479,35 @@ func (s *CatalogService) toProductDTO(p *model.Product, full bool) dto.ProductDT
 		})
 	}
 	return d
+}
+
+func parentIDs(list []model.Product) []uint64 {
+	seen := map[uint64]struct{}{}
+	out := make([]uint64, 0)
+	for _, p := range list {
+		if p.ParentID == 0 {
+			continue
+		}
+		if _, ok := seen[p.ParentID]; ok {
+			continue
+		}
+		seen[p.ParentID] = struct{}{}
+		out = append(out, p.ParentID)
+	}
+	return out
+}
+
+func (s *CatalogService) productNameMap(tenantID uint64, ids []uint64) map[uint64]string {
+	m := map[uint64]string{}
+	if len(ids) == 0 {
+		return m
+	}
+	var list []model.Product
+	_ = s.db(tenantID).Select("id, name").Where("id IN ?", ids).Find(&list).Error
+	for _, p := range list {
+		m[p.ID] = p.Name
+	}
+	return m
 }
 
 func (s *CatalogService) brandNameMap(tenantID uint64) map[uint64]string {

@@ -64,6 +64,9 @@ onMounted(async () => {
       <el-table-column prop="modelNo" label="型号" width="140" />
       <el-table-column prop="brandName" label="品牌" width="120" />
       <el-table-column prop="seriesName" label="系列" width="120" />
+      <el-table-column label="大套" min-width="180">
+        <template #default="{ row }">{{ row.parentName || '—' }}</template>
+      </el-table-column>
       <el-table-column label="子规格" width="80">
         <template #default="{ row }">{{ (row.variants || []).length }}</template>
       </el-table-column>

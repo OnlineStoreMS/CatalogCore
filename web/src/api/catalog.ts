@@ -60,8 +60,10 @@ export interface Product {
   id: number
   brandId: number
   seriesId: number
+  parentId: number
   brandName?: string
   seriesName?: string
+  parentName?: string
   name: string
   modelNo: string
   subtitle: string
