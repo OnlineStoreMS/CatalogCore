@@ -2,7 +2,7 @@
 import { onMounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import {
-  listCrawlJobs, createCrawlJob, startCrawlJob, getCrawlJob, listBrands, listSeries,
+  listCrawlJobs, createCrawlJob, startCrawlJob, getCrawlJob, listBrands, listSeries, seriesOptionLabel,
   type CrawlJob, type Brand, type Series,
 } from '../api/catalog'
 
@@ -128,7 +128,7 @@ onMounted(load)
         </el-form-item>
         <el-form-item label="系列">
           <el-select v-model="form.seriesId" clearable filterable style="width: 100%">
-            <el-option v-for="s in series" :key="s.id" :label="s.name" :value="s.id" />
+            <el-option v-for="s in series" :key="s.id" :label="seriesOptionLabel(s)" :value="s.id" />
           </el-select>
         </el-form-item>
         <el-form-item label="适配器">

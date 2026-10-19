@@ -19,10 +19,10 @@ import (
 )
 
 type CatalogService struct {
-	repos  *repo.Repos
-	store  storage.Storage
-	fetch  *crawl.Fetcher
-	mu     sync.Mutex
+	repos   *repo.Repos
+	store   storage.Storage
+	fetch   *crawl.Fetcher
+	mu      sync.Mutex
 	running map[uint64]context.CancelFunc
 }
 
@@ -52,7 +52,7 @@ func (s *CatalogService) ListBrands(tenantID uint64, keyword string) ([]dto.Bran
 	q := s.db(tenantID).Model(&model.Brand{}).Order("sort desc, id desc")
 	if kw := strings.TrimSpace(keyword); kw != "" {
 		like := "%" + kw + "%"
-		q = q.Where("name ILIKE ? OR code ILIKE ?", like, like)
+		q = q.Where("name ILIKE ? OR name_en ILIKE ? OR code ILIKE ?", like, like, like)
 	}
 	var list []model.Brand
 	if err := q.Find(&list).Error; err != nil {
@@ -83,6 +83,7 @@ func (s *CatalogService) SaveBrand(tenantID, id uint64, req dto.BrandSaveReq) (*
 		row.TenantID = repo.NormalizeTenantID(tenantID)
 	}
 	row.Name = name
+	row.NameEn = strings.TrimSpace(req.NameEn)
 	row.Code = strings.TrimSpace(req.Code)
 	row.LogoURL = strings.TrimSpace(req.LogoURL)
 	row.Website = strings.TrimSpace(req.Website)
@@ -121,7 +122,7 @@ func (s *CatalogService) DeleteBrand(tenantID, id uint64) error {
 
 func (s *CatalogService) toBrandDTO(b *model.Brand) dto.BrandDTO {
 	return dto.BrandDTO{
-		ID: b.ID, Name: b.Name, Code: b.Code, LogoURL: s.resolveURL(b.LogoURL),
+		ID: b.ID, Name: b.Name, NameEn: b.NameEn, Code: b.Code, LogoURL: s.resolveURL(b.LogoURL),
 		Website: b.Website, Country: b.Country, Description: b.Description,
 		Sort: b.Sort, Status: b.Status,
 		CreatedAt: b.CreatedAt.Format(time.RFC3339),
@@ -132,7 +133,14 @@ func (s *CatalogService) toBrandDTO(b *model.Brand) dto.BrandDTO {
 // ── Series ──
 
 func (s *CatalogService) ListSeries(tenantID, brandID uint64) ([]dto.SeriesDTO, error) {
-	q := s.db(tenantID).Model(&model.Series{}).Order("sort desc, id desc")
+	if err := SeedStandardCategories(s.repos.DB, tenantID); err != nil {
+		return nil, err
+	}
+	cats, err := s.categoryByID(tenantID)
+	if err != nil {
+		return nil, err
+	}
+	q := s.db(tenantID).Model(&model.Series{}).Order("sort asc, id asc")
 	if brandID > 0 {
 		q = q.Where("brand_id = ?", brandID)
 	}
@@ -141,12 +149,8 @@ func (s *CatalogService) ListSeries(tenantID, brandID uint64) ([]dto.SeriesDTO, 
 		return nil, err
 	}
 	out := make([]dto.SeriesDTO, 0, len(list))
-	for _, row := range list {
-		out = append(out, dto.SeriesDTO{
-			ID: row.ID, BrandID: row.BrandID, Name: row.Name, Code: row.Code,
-			Description: row.Description, CoverURL: s.resolveURL(row.CoverURL),
-			Sort: row.Sort, Status: row.Status,
-		})
+	for i := range list {
+		out = append(out, s.toSeriesDTO(&list[i], cats))
 	}
 	return out, nil
 }
@@ -158,6 +162,15 @@ func (s *CatalogService) SaveSeries(tenantID, id uint64, req dto.SeriesSaveReq) 
 	var brand model.Brand
 	if err := s.db(tenantID).First(&brand, req.BrandID).Error; err != nil {
 		return nil, mapNotFound(err)
+	}
+	if err := SeedStandardCategories(s.repos.DB, tenantID); err != nil {
+		return nil, err
+	}
+	if req.CategoryID > 0 {
+		var cat model.Category
+		if err := s.db(tenantID).First(&cat, req.CategoryID).Error; err != nil {
+			return nil, fmt.Errorf("%w: 品类不存在", ErrBadRequest)
+		}
 	}
 	status := int8(1)
 	if req.Status != nil {
@@ -172,6 +185,7 @@ func (s *CatalogService) SaveSeries(tenantID, id uint64, req dto.SeriesSaveReq) 
 		row.TenantID = repo.NormalizeTenantID(tenantID)
 	}
 	row.BrandID = req.BrandID
+	row.CategoryID = req.CategoryID
 	row.Name = strings.TrimSpace(req.Name)
 	row.Code = strings.TrimSpace(req.Code)
 	row.Description = strings.TrimSpace(req.Description)
@@ -187,12 +201,27 @@ func (s *CatalogService) SaveSeries(tenantID, id uint64, req dto.SeriesSaveReq) 
 	if err != nil {
 		return nil, err
 	}
+	cats, err := s.categoryByID(tenantID)
+	if err != nil {
+		return nil, err
+	}
+	d := s.toSeriesDTO(&row, cats)
+	return &d, nil
+}
+
+func (s *CatalogService) toSeriesDTO(row *model.Series, cats map[uint64]model.Category) dto.SeriesDTO {
 	d := dto.SeriesDTO{
-		ID: row.ID, BrandID: row.BrandID, Name: row.Name, Code: row.Code,
+		ID: row.ID, BrandID: row.BrandID, CategoryID: row.CategoryID,
+		Name: row.Name, Code: row.Code,
 		Description: row.Description, CoverURL: s.resolveURL(row.CoverURL),
 		Sort: row.Sort, Status: row.Status,
 	}
-	return &d, nil
+	if cat, ok := cats[row.CategoryID]; ok {
+		d.CategoryName = cat.Name
+		d.CategoryNameEn = cat.NameEn
+		d.CategoryCode = cat.Code
+	}
+	return d
 }
 
 func (s *CatalogService) DeleteSeries(tenantID, id uint64) error {

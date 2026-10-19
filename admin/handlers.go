@@ -99,6 +99,15 @@ func (h *Handlers) DeleteBrand(c *gin.Context) {
 	response.OK(c, nil)
 }
 
+func (h *Handlers) ListCategories(c *gin.Context) {
+	list, err := h.svc.ListCategories(authcontext.TenantID(c))
+	if err != nil {
+		h.mapError(c, err)
+		return
+	}
+	response.OK(c, list)
+}
+
 func (h *Handlers) ListSeries(c *gin.Context) {
 	brandID, _ := strconv.ParseUint(c.Query("brandId"), 10, 64)
 	list, err := h.svc.ListSeries(authcontext.TenantID(c), brandID)

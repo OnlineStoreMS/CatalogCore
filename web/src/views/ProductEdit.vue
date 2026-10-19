@@ -3,7 +3,7 @@ import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import {
-  getProduct, saveProduct, listBrands, listSeries,
+  getProduct, saveProduct, listBrands, listSeries, seriesOptionLabel,
   type Brand, type Series, type Variant,
 } from '../api/catalog'
 
@@ -132,7 +132,7 @@ onMounted(load)
         <el-col :span="12">
           <el-form-item label="系列">
             <el-select v-model="form.seriesId" clearable filterable style="width: 100%">
-              <el-option v-for="s in series" :key="s.id" :label="s.name" :value="s.id" />
+              <el-option v-for="s in series" :key="s.id" :label="seriesOptionLabel(s)" :value="s.id" />
             </el-select>
           </el-form-item>
         </el-col>

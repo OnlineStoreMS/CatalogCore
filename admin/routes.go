@@ -10,6 +10,8 @@ func RegisterRoutes(g *gin.RouterGroup, h *Handlers) {
 	g.PUT("/brands/:id", h.UpdateBrand)
 	g.DELETE("/brands/:id", h.DeleteBrand)
 
+	g.GET("/categories", h.ListCategories)
+
 	g.GET("/series", h.ListSeries)
 	g.POST("/series", h.CreateSeries)
 	g.PUT("/series/:id", h.UpdateSeries)

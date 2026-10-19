@@ -11,6 +11,7 @@ export interface DashboardStats {
 export interface Brand {
   id: number
   name: string
+  nameEn: string
   code: string
   logoUrl: string
   website: string
@@ -20,9 +21,22 @@ export interface Brand {
   status: number
 }
 
+export interface Category {
+  id: number
+  name: string
+  nameEn: string
+  code: string
+  sort: number
+  status: number
+}
+
 export interface Series {
   id: number
   brandId: number
+  categoryId: number
+  categoryName?: string
+  categoryNameEn?: string
+  categoryCode?: string
   name: string
   code: string
   description: string
@@ -93,6 +107,14 @@ export async function saveBrand(data: Partial<Brand> & { name: string }, id?: nu
 
 export async function deleteBrand(id: number) {
   return unwrap(await client.delete(`/brands/${id}`))
+}
+
+export async function listCategories() {
+  return unwrap<Category[]>(await client.get('/categories'))
+}
+
+export function seriesOptionLabel(series: Series) {
+  return series.categoryName ? `${series.categoryName} / ${series.name}` : series.name
 }
 
 export async function listSeries(brandId?: number) {

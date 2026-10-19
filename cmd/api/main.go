@@ -9,6 +9,7 @@ import (
 	"catalogcore/internal/config"
 	"catalogcore/internal/database"
 	"catalogcore/internal/router"
+	"catalogcore/internal/service"
 )
 
 func main() {
@@ -29,6 +30,9 @@ func main() {
 		log.Fatal(err)
 	}
 	if err := database.AutoMigrate(db); err != nil {
+		log.Fatal(err)
+	}
+	if err := service.SeedStandardCategories(db); err != nil {
 		log.Fatal(err)
 	}
 	log.Printf("database connected: driver=%s", cfg.Database.Driver)

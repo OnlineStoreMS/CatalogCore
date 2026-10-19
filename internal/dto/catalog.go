@@ -8,6 +8,7 @@ type PageQuery struct {
 type BrandDTO struct {
 	ID          uint64 `json:"id"`
 	Name        string `json:"name"`
+	NameEn      string `json:"nameEn"`
 	Code        string `json:"code"`
 	LogoURL     string `json:"logoUrl"`
 	Website     string `json:"website"`
@@ -21,6 +22,7 @@ type BrandDTO struct {
 
 type BrandSaveReq struct {
 	Name        string `json:"name" binding:"required"`
+	NameEn      string `json:"nameEn"`
 	Code        string `json:"code"`
 	LogoURL     string `json:"logoUrl"`
 	Website     string `json:"website"`
@@ -30,19 +32,33 @@ type BrandSaveReq struct {
 	Status      *int8  `json:"status"`
 }
 
+type CategoryDTO struct {
+	ID     uint64 `json:"id"`
+	Name   string `json:"name"`
+	NameEn string `json:"nameEn"`
+	Code   string `json:"code"`
+	Sort   int    `json:"sort"`
+	Status int8   `json:"status"`
+}
+
 type SeriesDTO struct {
-	ID          uint64 `json:"id"`
-	BrandID     uint64 `json:"brandId"`
-	Name        string `json:"name"`
-	Code        string `json:"code"`
-	Description string `json:"description"`
-	CoverURL    string `json:"coverUrl"`
-	Sort        int    `json:"sort"`
-	Status      int8   `json:"status"`
+	ID             uint64 `json:"id"`
+	BrandID        uint64 `json:"brandId"`
+	CategoryID     uint64 `json:"categoryId"`
+	CategoryName   string `json:"categoryName,omitempty"`
+	CategoryNameEn string `json:"categoryNameEn,omitempty"`
+	CategoryCode   string `json:"categoryCode,omitempty"`
+	Name           string `json:"name"`
+	Code           string `json:"code"`
+	Description    string `json:"description"`
+	CoverURL       string `json:"coverUrl"`
+	Sort           int    `json:"sort"`
+	Status         int8   `json:"status"`
 }
 
 type SeriesSaveReq struct {
 	BrandID     uint64 `json:"brandId" binding:"required"`
+	CategoryID  uint64 `json:"categoryId"`
 	Name        string `json:"name" binding:"required"`
 	Code        string `json:"code"`
 	Description string `json:"description"`
