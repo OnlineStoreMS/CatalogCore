@@ -24,10 +24,10 @@ var standardCategories = []standardCategory{
 	{Code: "gravel", Name: "砾石", NameEn: "GRAVEL", Sort: 30},
 	{Code: "lifestyle", Name: "休闲城市", NameEn: "LIFESTYLE", Sort: 40},
 	{Code: "ebike", Name: "电助力", NameEn: "E-BIKE", Sort: 50},
-	{Code: "apparel", Name: "服饰", NameEn: "APPAREL", Sort: 60},
+	{Code: "apparel", Name: "装备", NameEn: "APPAREL", Sort: 60},
 }
 
-// 禧玛诺已入库系列的归类。CUES 跨场景、通用 SHIMANO 不是官网品类，不在这里。
+// 禧玛诺已入库系列的归类。通用桶系列 SHIMANO 不保留。
 var seriesCategoryByCode = map[string]string{
 	"dura-ace":           "road",
 	"ultegra":            "road",
@@ -35,6 +35,7 @@ var seriesCategoryByCode = map[string]string{
 	"tiagra":             "road",
 	"sora":               "road",
 	"claris":             "road",
+	"cues":               "mtb",
 	"xtr":                "mtb",
 	"saint":              "mtb",
 	"deorext":            "mtb",
