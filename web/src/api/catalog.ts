@@ -113,6 +113,15 @@ export async function listCategories() {
   return unwrap<Category[]>(await client.get('/categories'))
 }
 
+export async function saveCategory(data: Partial<Category> & { name: string }, id?: number) {
+  if (id) return unwrap<Category>(await client.put(`/categories/${id}`, data))
+  return unwrap<Category>(await client.post('/categories', data))
+}
+
+export async function deleteCategory(id: number) {
+  return unwrap(await client.delete(`/categories/${id}`))
+}
+
 export function seriesOptionLabel(series: Series) {
   return series.categoryName ? `${series.categoryName} / ${series.name}` : series.name
 }

@@ -3,7 +3,8 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   listBrands, saveBrand, deleteBrand,
-  listCategories, listSeries, saveSeries, deleteSeries,
+  listCategories, saveCategory, deleteCategory,
+  listSeries, saveSeries, deleteSeries,
   type Brand, type Category, type Series,
 } from '../api/catalog'
 
@@ -13,26 +14,17 @@ const categories = ref<Category[]>([])
 const series = ref<Series[]>([])
 const keyword = ref('')
 const activeBrandId = ref<number | null>(null)
-const openCategories = ref<string[]>([])
+const activeCategoryId = ref<number | null>(null)
 
 const brandDialog = ref(false)
 const brandForm = ref({ id: 0, name: '', nameEn: '', code: '', website: '', country: '', description: '' })
+const categoryDialog = ref(false)
+const categoryForm = ref({ id: 0, name: '', nameEn: '', code: '', sort: 0 })
 const seriesDialog = ref(false)
 const seriesForm = ref({ id: 0, brandId: 0, categoryId: null as number | null, name: '', code: '', description: '' })
 
-const seriesGroups = computed(() => {
-  const groups = categories.value.map((c) => ({
-    key: String(c.id),
-    categoryId: c.id,
-    title: `${c.name}  ${c.nameEn}`,
-    items: series.value.filter((s) => s.categoryId === c.id),
-  }))
-  const loose = series.value.filter((s) => !s.categoryId)
-  if (loose.length) {
-    groups.push({ key: 'none', categoryId: 0, title: '未归类', items: loose })
-  }
-  return groups
-})
+const categorySeries = computed(() => series.value.filter((s) => s.categoryId === activeCategoryId.value))
+const activeCategory = computed(() => categories.value.find((c) => c.id === activeCategoryId.value))
 
 async function loadBrands() {
   loading.value = true
@@ -50,7 +42,9 @@ async function loadBrands() {
 
 async function loadCategories() {
   categories.value = await listCategories()
-  openCategories.value = [...categories.value.map((c) => String(c.id)), 'none']
+  if (activeCategoryId.value == null && categories.value.length) {
+    activeCategoryId.value = categories.value[0].id
+  }
 }
 
 async function loadSeries() {
@@ -87,6 +81,33 @@ async function removeBrand(row: Brand) {
   if (activeBrandId.value === row.id) activeBrandId.value = null
   ElMessage.success('已删除')
   await loadBrands()
+}
+
+function openCategory(row?: Category) {
+  categoryForm.value = row
+    ? { id: row.id, name: row.name, nameEn: row.nameEn, code: row.code, sort: row.sort }
+    : { id: 0, name: '', nameEn: '', code: '', sort: 0 }
+  categoryDialog.value = true
+}
+
+async function submitCategory() {
+  try {
+    const saved = await saveCategory(categoryForm.value, categoryForm.value.id || undefined)
+    categoryDialog.value = false
+    ElMessage.success('已保存')
+    activeCategoryId.value = saved.id
+    await loadCategories()
+  } catch (e) {
+    ElMessage.error((e as Error).message)
+  }
+}
+
+async function removeCategory(row: Category) {
+  await ElMessageBox.confirm(`删除品类「${row.name}」？`, '确认')
+  await deleteCategory(row.id)
+  if (activeCategoryId.value === row.id) activeCategoryId.value = null
+  ElMessage.success('已删除')
+  await loadCategories()
 }
 
 function openSeries(row?: Series, categoryId = 0) {
@@ -155,32 +176,39 @@ onMounted(async () => {
       <el-card shadow="never" class="pane">
         <template #header>
           <div class="pane-head">
-            <span>品类与系列</span>
-            <el-button size="small" type="primary" @click="openSeries()">新建系列</el-button>
+            <span>品类</span>
+            <el-button size="small" type="primary" @click="openCategory()">新建品类</el-button>
           </div>
         </template>
-        <el-collapse v-model="openCategories" class="series-groups">
-          <el-collapse-item v-for="g in seriesGroups" :key="g.key" :name="g.key">
-            <template #title>
-              <div class="cat-title">
-                <span>{{ g.title }}</span>
-                <span class="cat-count">{{ g.items.length }}</span>
-                <el-button link type="primary" @click.stop="openSeries(undefined, g.categoryId)">新建</el-button>
-              </div>
+        <el-table :data="categories" highlight-current-row height="520" @current-change="(r: Category | undefined) => { if (r) activeCategoryId = r.id }">
+          <el-table-column prop="name" label="名称" min-width="90" />
+          <el-table-column prop="nameEn" label="英文名" min-width="110" />
+          <el-table-column label="操作" width="120">
+            <template #default="{ row }">
+              <el-button link type="primary" @click.stop="openCategory(row)">编辑</el-button>
+              <el-button link type="danger" @click.stop="removeCategory(row)">删除</el-button>
             </template>
-            <el-table v-if="g.items.length" :data="g.items" size="small">
-              <el-table-column prop="name" label="系列" min-width="140" />
-              <el-table-column prop="code" label="编码" width="120" />
-              <el-table-column label="操作" width="120">
-                <template #default="{ row }">
-                  <el-button link type="primary" @click="openSeries(row)">编辑</el-button>
-                  <el-button link type="danger" @click="removeSeries(row)">删除</el-button>
-                </template>
-              </el-table-column>
-            </el-table>
-            <div v-else class="empty">暂无系列</div>
-          </el-collapse-item>
-        </el-collapse>
+          </el-table-column>
+        </el-table>
+      </el-card>
+
+      <el-card shadow="never" class="pane">
+        <template #header>
+          <div class="pane-head">
+            <span>系列{{ activeCategory ? ` · ${activeCategory.name}` : '' }}</span>
+            <el-button size="small" type="primary" @click="openSeries(undefined, activeCategoryId || 0)">新建系列</el-button>
+          </div>
+        </template>
+        <el-table :data="categorySeries" height="520">
+          <el-table-column prop="name" label="名称" min-width="140" />
+          <el-table-column prop="code" label="编码" width="120" />
+          <el-table-column label="操作" width="120">
+            <template #default="{ row }">
+              <el-button link type="primary" @click="openSeries(row)">编辑</el-button>
+              <el-button link type="danger" @click="removeSeries(row)">删除</el-button>
+            </template>
+          </el-table-column>
+        </el-table>
       </el-card>
     </div>
 
@@ -196,6 +224,19 @@ onMounted(async () => {
       <template #footer>
         <el-button @click="brandDialog = false">取消</el-button>
         <el-button type="primary" @click="submitBrand">保存</el-button>
+      </template>
+    </el-dialog>
+
+    <el-dialog v-model="categoryDialog" :title="categoryForm.id ? '编辑品类' : '新建品类'" width="520px">
+      <el-form label-width="80px">
+        <el-form-item label="名称" required><el-input v-model="categoryForm.name" /></el-form-item>
+        <el-form-item label="英文名"><el-input v-model="categoryForm.nameEn" /></el-form-item>
+        <el-form-item label="编码"><el-input v-model="categoryForm.code" /></el-form-item>
+        <el-form-item label="排序"><el-input-number v-model="categoryForm.sort" :min="0" /></el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="categoryDialog = false">取消</el-button>
+        <el-button type="primary" @click="submitCategory">保存</el-button>
       </template>
     </el-dialog>
 
@@ -222,11 +263,7 @@ onMounted(async () => {
 .page-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
 .page-head h2 { margin: 0; font-size: 18px; }
 .actions { display: flex; gap: 8px; }
-.split { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.split { display: grid; grid-template-columns: 1.1fr 0.9fr 1.1fr; gap: 16px; }
 .pane-head { display: flex; justify-content: space-between; align-items: center; }
-.series-groups { border: none; }
-.cat-title { display: flex; align-items: center; gap: 8px; width: 100%; padding-right: 8px; }
-.cat-count { color: var(--el-text-color-secondary); font-size: 12px; }
-.empty { color: var(--el-text-color-secondary); font-size: 13px; padding: 4px 0 8px; }
 @media (max-width: 960px) { .split { grid-template-columns: 1fr; } }
 </style>

@@ -41,6 +41,14 @@ type CategoryDTO struct {
 	Status int8   `json:"status"`
 }
 
+type CategorySaveReq struct {
+	Name   string `json:"name" binding:"required"`
+	NameEn string `json:"nameEn"`
+	Code   string `json:"code"`
+	Sort   int    `json:"sort"`
+	Status *int8  `json:"status"`
+}
+
 type SeriesDTO struct {
 	ID             uint64 `json:"id"`
 	BrandID        uint64 `json:"brandId"`

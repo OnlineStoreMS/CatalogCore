@@ -108,6 +108,52 @@ func (h *Handlers) ListCategories(c *gin.Context) {
 	response.OK(c, list)
 }
 
+func (h *Handlers) CreateCategory(c *gin.Context) {
+	var req dto.CategorySaveReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Fail(c, http.StatusBadRequest, err.Error())
+		return
+	}
+	item, err := h.svc.SaveCategory(authcontext.TenantID(c), 0, req)
+	if err != nil {
+		h.mapError(c, err)
+		return
+	}
+	response.Created(c, item)
+}
+
+func (h *Handlers) UpdateCategory(c *gin.Context) {
+	id, err := httputil.ParseID(c)
+	if err != nil {
+		response.Fail(c, http.StatusBadRequest, "invalid id")
+		return
+	}
+	var req dto.CategorySaveReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Fail(c, http.StatusBadRequest, err.Error())
+		return
+	}
+	item, err := h.svc.SaveCategory(authcontext.TenantID(c), id, req)
+	if err != nil {
+		h.mapError(c, err)
+		return
+	}
+	response.OK(c, item)
+}
+
+func (h *Handlers) DeleteCategory(c *gin.Context) {
+	id, err := httputil.ParseID(c)
+	if err != nil {
+		response.Fail(c, http.StatusBadRequest, "invalid id")
+		return
+	}
+	if err := h.svc.DeleteCategory(authcontext.TenantID(c), id); err != nil {
+		h.mapError(c, err)
+		return
+	}
+	response.OK(c, nil)
+}
+
 func (h *Handlers) ListSeries(c *gin.Context) {
 	brandID, _ := strconv.ParseUint(c.Query("brandId"), 10, 64)
 	list, err := h.svc.ListSeries(authcontext.TenantID(c), brandID)

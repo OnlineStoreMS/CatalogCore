@@ -1,6 +1,7 @@
 package service
 
 import (
+	"fmt"
 	"strings"
 
 	"catalogcore/internal/dto"
@@ -152,6 +153,84 @@ func (s *CatalogService) ListCategories(tenantID uint64) ([]dto.CategoryDTO, err
 		})
 	}
 	return out, nil
+}
+
+func (s *CatalogService) SaveCategory(tenantID, id uint64, req dto.CategorySaveReq) (*dto.CategoryDTO, error) {
+	name := strings.TrimSpace(req.Name)
+	if name == "" {
+		return nil, fmt.Errorf("%w: name required", ErrBadRequest)
+	}
+	if err := SeedStandardCategories(s.repos.DB, tenantID); err != nil {
+		return nil, err
+	}
+	code := strings.TrimSpace(req.Code)
+	if code == "" {
+		code = strings.ToLower(strings.TrimSpace(req.NameEn))
+		code = strings.ReplaceAll(code, " ", "-")
+	}
+	status := int8(1)
+	if req.Status != nil {
+		status = *req.Status
+	}
+	var row model.Category
+	if id > 0 {
+		if err := s.db(tenantID).First(&row, id).Error; err != nil {
+			return nil, mapNotFound(err)
+		}
+	} else {
+		row.TenantID = repo.NormalizeTenantID(tenantID)
+	}
+	if code != "" {
+		var dup model.Category
+		err := s.db(tenantID).Where("code = ? AND id <> ?", code, row.ID).First(&dup).Error
+		if err == nil {
+			return nil, fmt.Errorf("%w: 品类编码已存在", ErrConflict)
+		}
+		if err != nil && err != gorm.ErrRecordNotFound {
+			return nil, err
+		}
+	}
+	sort := req.Sort
+	if id == 0 && sort == 0 {
+		var maxSort int
+		s.db(tenantID).Model(&model.Category{}).Select("COALESCE(MAX(sort), 0)").Scan(&maxSort)
+		sort = maxSort + 10
+	}
+	row.Name = name
+	row.NameEn = strings.TrimSpace(req.NameEn)
+	row.Code = code
+	row.Sort = sort
+	row.Status = status
+	var err error
+	if id > 0 {
+		err = s.repos.DB.Save(&row).Error
+	} else {
+		err = s.repos.DB.Create(&row).Error
+	}
+	if err != nil {
+		return nil, err
+	}
+	d := dto.CategoryDTO{
+		ID: row.ID, Name: row.Name, NameEn: row.NameEn, Code: row.Code,
+		Sort: row.Sort, Status: row.Status,
+	}
+	return &d, nil
+}
+
+func (s *CatalogService) DeleteCategory(tenantID, id uint64) error {
+	var cnt int64
+	s.db(tenantID).Model(&model.Series{}).Where("category_id = ?", id).Count(&cnt)
+	if cnt > 0 {
+		return fmt.Errorf("%w: 品类下仍有系列", ErrConflict)
+	}
+	res := s.db(tenantID).Delete(&model.Category{}, id)
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected == 0 {
+		return ErrNotFound
+	}
+	return nil
 }
 
 func (s *CatalogService) categoryByID(tenantID uint64) (map[uint64]model.Category, error) {
