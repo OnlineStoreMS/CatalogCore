@@ -64,6 +64,8 @@ export interface Product {
   brandName?: string
   seriesName?: string
   parentName?: string
+  childCount?: number
+  children?: { id: number; name: string; modelNo: string; seriesId: number }[]
   name: string
   modelNo: string
   subtitle: string
@@ -156,6 +158,10 @@ export async function saveProduct(data: Record<string, unknown>, id?: number) {
 
 export async function deleteProduct(id: number) {
   return unwrap(await client.delete(`/products/${id}`))
+}
+
+export async function setProductParent(id: number, parentId: number) {
+  return unwrap(await client.put(`/products/${id}/parent`, { parentId }))
 }
 
 export async function listCrawlJobs(page = 1, pageSize = 20) {

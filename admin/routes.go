@@ -24,6 +24,7 @@ func RegisterRoutes(g *gin.RouterGroup, h *Handlers) {
 	g.POST("/products", h.CreateProduct)
 	g.GET("/products/:id", h.GetProduct)
 	g.PUT("/products/:id", h.UpdateProduct)
+	g.PUT("/products/:id/parent", h.SetProductParent)
 	g.DELETE("/products/:id", h.DeleteProduct)
 
 	g.GET("/crawl-jobs", h.ListCrawlJobs)

@@ -228,6 +228,26 @@ func (h *Handlers) ListProducts(c *gin.Context) {
 	response.OK(c, response.PageResult(list, total, page, pageSize))
 }
 
+func (h *Handlers) SetProductParent(c *gin.Context) {
+	id, err := httputil.ParseID(c)
+	if err != nil {
+		response.Fail(c, http.StatusBadRequest, "invalid id")
+		return
+	}
+	var req struct {
+		ParentID uint64 `json:"parentId"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Fail(c, http.StatusBadRequest, err.Error())
+		return
+	}
+	if err := h.svc.SetProductParent(authcontext.TenantID(c), id, req.ParentID); err != nil {
+		h.mapError(c, err)
+		return
+	}
+	response.OK(c, nil)
+}
+
 func (h *Handlers) GetProduct(c *gin.Context) {
 	id, err := httputil.ParseID(c)
 	if err != nil {

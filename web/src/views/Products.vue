@@ -60,13 +60,15 @@ onMounted(async () => {
     </div>
 
     <el-table v-loading="loading" :data="list" stripe>
-      <el-table-column prop="name" label="产品名称" min-width="180" />
+      <el-table-column prop="name" label="产品名称" min-width="220">
+        <template #default="{ row }">
+          <span>{{ row.name }}</span>
+          <el-tag v-if="row.childCount" size="small" class="combo-tag">组合品</el-tag>
+        </template>
+      </el-table-column>
       <el-table-column prop="modelNo" label="型号" width="140" />
       <el-table-column prop="brandName" label="品牌" width="120" />
       <el-table-column prop="seriesName" label="系列" width="120" />
-      <el-table-column label="大套" min-width="180">
-        <template #default="{ row }">{{ row.parentName || '—' }}</template>
-      </el-table-column>
       <el-table-column label="子规格" width="80">
         <template #default="{ row }">{{ (row.variants || []).length }}</template>
       </el-table-column>
@@ -102,4 +104,5 @@ onMounted(async () => {
 .page-head h2 { margin: 0; font-size: 18px; }
 .actions { display: flex; gap: 8px; flex-wrap: wrap; }
 .pager { margin-top: 16px; display: flex; justify-content: flex-end; }
+.combo-tag { margin-left: 8px; }
 </style>

@@ -272,12 +272,14 @@ func (s *CatalogService) ListProducts(tenantID uint64, q dto.ProductListQuery) (
 	brandNames := s.brandNameMap(tenantID)
 	seriesNames := s.seriesNameMap(tenantID)
 	parentNames := s.productNameMap(tenantID, parentIDs(list))
+	counts := s.childCounts(tenantID, productIDs(list))
 	out := make([]dto.ProductDTO, 0, len(list))
 	for i := range list {
 		d := s.toProductDTO(&list[i], false)
 		d.BrandName = brandNames[list[i].BrandID]
 		d.SeriesName = seriesNames[list[i].SeriesID]
 		d.ParentName = parentNames[list[i].ParentID]
+		d.ChildCount = counts[list[i].ID]
 		out = append(out, d)
 	}
 	return out, total, nil
@@ -297,7 +299,41 @@ func (s *CatalogService) GetProduct(tenantID, id uint64) (*dto.ProductDTO, error
 		names := s.productNameMap(tenantID, []uint64{row.ParentID})
 		d.ParentName = names[row.ParentID]
 	}
+	var children []model.Product
+	if err := s.db(tenantID).Where("parent_id = ?", row.ID).Order("id").Find(&children).Error; err != nil {
+		return nil, err
+	}
+	d.ChildCount = len(children)
+	d.Children = make([]dto.ProductRef, 0, len(children))
+	for _, c := range children {
+		d.Children = append(d.Children, dto.ProductRef{ID: c.ID, Name: c.Name, ModelNo: c.ModelNo, SeriesID: c.SeriesID})
+	}
 	return &d, nil
+}
+
+func (s *CatalogService) SetProductParent(tenantID, id, parentID uint64) error {
+	var row model.Product
+	if err := s.db(tenantID).First(&row, id).Error; err != nil {
+		return mapNotFound(err)
+	}
+	if parentID == id {
+		return fmt.Errorf("%w: 不能把产品挂到自己下面", ErrBadRequest)
+	}
+	if parentID > 0 {
+		var parent model.Product
+		if err := s.db(tenantID).First(&parent, parentID).Error; err != nil {
+			return fmt.Errorf("%w: 组合品不存在", ErrBadRequest)
+		}
+		if parent.ParentID > 0 {
+			return fmt.Errorf("%w: 组成品不能再包含产品", ErrBadRequest)
+		}
+		var cnt int64
+		s.db(tenantID).Model(&model.Product{}).Where("parent_id = ?", id).Count(&cnt)
+		if cnt > 0 {
+			return fmt.Errorf("%w: 组合品不能再作为组成品", ErrBadRequest)
+		}
+	}
+	return s.repos.DB.Model(&model.Product{}).Where("id = ?", row.ID).Update("parent_id", parentID).Error
 }
 
 func (s *CatalogService) SaveProduct(tenantID, userID, id uint64, req dto.ProductSaveReq) (*dto.ProductDTO, error) {
@@ -320,10 +356,10 @@ func (s *CatalogService) SaveProduct(tenantID, userID, id uint64, req dto.Produc
 		}
 		var parent model.Product
 		if err := s.db(tenantID).Where("id = ? AND brand_id = ?", req.ParentID, req.BrandID).First(&parent).Error; err != nil {
-			return nil, fmt.Errorf("%w: 大套不存在或不属于该品牌", ErrBadRequest)
+			return nil, fmt.Errorf("%w: 组合品不存在或不属于该品牌", ErrBadRequest)
 		}
 		if parent.ParentID > 0 {
-			return nil, fmt.Errorf("%w: 只能挂在大套下面", ErrBadRequest)
+			return nil, fmt.Errorf("%w: 组成品不能再包含产品", ErrBadRequest)
 		}
 	}
 	status := int8(1)
@@ -436,7 +472,7 @@ func (s *CatalogService) DeleteProduct(tenantID, id uint64) error {
 	var cnt int64
 	s.db(tenantID).Model(&model.Product{}).Where("parent_id = ?", id).Count(&cnt)
 	if cnt > 0 {
-		return fmt.Errorf("%w: 大套下仍有产品", ErrConflict)
+		return fmt.Errorf("%w: 组合品下仍有组成品", ErrConflict)
 	}
 	return s.repos.DB.Transaction(func(tx *gorm.DB) error {
 		res := tx.Where("tenant_id = ?", repo.NormalizeTenantID(tenantID)).Delete(&model.Product{}, id)
@@ -479,6 +515,35 @@ func (s *CatalogService) toProductDTO(p *model.Product, full bool) dto.ProductDT
 		})
 	}
 	return d
+}
+
+func productIDs(list []model.Product) []uint64 {
+	out := make([]uint64, 0, len(list))
+	for _, p := range list {
+		out = append(out, p.ID)
+	}
+	return out
+}
+
+func (s *CatalogService) childCounts(tenantID uint64, ids []uint64) map[uint64]int {
+	m := map[uint64]int{}
+	if len(ids) == 0 {
+		return m
+	}
+	type row struct {
+		ParentID uint64
+		N        int
+	}
+	var rows []row
+	_ = s.db(tenantID).Model(&model.Product{}).
+		Select("parent_id, COUNT(*) AS n").
+		Where("parent_id IN ?", ids).
+		Group("parent_id").
+		Scan(&rows).Error
+	for _, r := range rows {
+		m[r.ParentID] = r.N
+	}
+	return m
 }
 
 func parentIDs(list []model.Product) []uint64 {

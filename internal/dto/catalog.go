@@ -104,6 +104,8 @@ type ProductDTO struct {
 	BrandName   string          `json:"brandName,omitempty"`
 	SeriesName  string          `json:"seriesName,omitempty"`
 	ParentName  string          `json:"parentName,omitempty"`
+	ChildCount  int             `json:"childCount"`
+	Children    []ProductRef    `json:"children,omitempty"`
 	Name        string          `json:"name"`
 	ModelNo     string          `json:"modelNo"`
 	Subtitle    string          `json:"subtitle"`
@@ -120,6 +122,13 @@ type ProductDTO struct {
 	Attachments []AttachmentDTO `json:"attachments,omitempty"`
 	CreatedAt   string          `json:"createdAt,omitempty"`
 	UpdatedAt   string          `json:"updatedAt,omitempty"`
+}
+
+type ProductRef struct {
+	ID       uint64 `json:"id"`
+	Name     string `json:"name"`
+	ModelNo  string `json:"modelNo"`
+	SeriesID uint64 `json:"seriesId"`
 }
 
 type ProductSaveReq struct {

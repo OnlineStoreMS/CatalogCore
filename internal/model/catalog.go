@@ -68,7 +68,7 @@ type Product struct {
 	TenantID   uint64         `gorm:"index;not null;default:1" json:"tenantId"`
 	BrandID    uint64         `gorm:"index;not null" json:"brandId"`
 	SeriesID   uint64         `gorm:"index;default:0" json:"seriesId"`
-	ParentID   uint64         `gorm:"index;default:0" json:"parentId"` // 所属大套；0 表示本身是大套或独立产品
+	ParentID   uint64         `gorm:"index;default:0" json:"parentId"` // 所属组合品；0 表示独立产品
 	Name       string         `gorm:"size:256;not null" json:"name"`
 	ModelNo    string         `gorm:"size:128;index" json:"modelNo"` // 型号
 	Subtitle   string         `gorm:"size:512" json:"subtitle"`
